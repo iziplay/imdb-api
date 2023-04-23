@@ -14,6 +14,8 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+var currentStats *database.Stats
+
 func FetchTitles(db *gorm.DB) error {
 	upsertColumns := []string{
 		"title_type",
@@ -75,9 +77,12 @@ func FetchTitles(db *gorm.DB) error {
 					return err
 				}
 			}
-			return db.Create(&database.Synchronization{
+			if err := db.Create(&database.Synchronization{
 				Date: time.Now().Format(time.RFC3339),
-			}).Error
+			}).Error; err != nil {
+				return err
+			}
+			calculateStatistics(db)
 		}
 		if err != nil {
 			panic(err)
@@ -97,5 +102,37 @@ func FetchTitles(db *gorm.DB) error {
 			batchCount++
 			batch = []database.Title{}
 		}
+	}
+}
+
+func GetStatistics(db *gorm.DB) (*database.Stats, error) {
+	if currentStats == nil {
+		calculateStatistics(db)
+	}
+
+	return currentStats, nil
+}
+
+func calculateStatistics(db *gorm.DB) {
+	var count int64
+	db.Model(&database.Title{}).Count(&count)
+
+	var types [](database.StatType)
+	db.Model(&database.Title{}).Select("title_type, COUNT(*)").Group("title_type").Order("title_type").Find(&types)
+
+	var genres [](database.StatGenre)
+	db.Table(
+		"(?) as g",
+		db.Model(&database.Title{}).Select("unnest(genres) as genre"),
+	).Select("g.genre, COUNT(*)").Group("genre").Order("genre").Find(&genres)
+
+	var adult int64
+	db.Model(&database.Title{}).Where("is_adult = ?", true).Count(&adult)
+
+	currentStats = &database.Stats{
+		Count:  uint(count),
+		Types:  types,
+		Genres: genres,
+		Adult:  uint(adult),
 	}
 }

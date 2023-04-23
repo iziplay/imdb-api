@@ -8,8 +8,8 @@ type Stats struct {
 }
 
 type StatType struct {
-	Type  string `json:"type"`
-	Count uint   `json:"count"`
+	TitleType string `json:"type"`
+	Count     uint   `json:"count"`
 }
 
 type StatGenre struct {
