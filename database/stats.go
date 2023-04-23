@@ -1,10 +1,11 @@
 package database
 
 type Stats struct {
-	Count  uint        `json:"count"`
-	Types  []StatType  `json:"types"`
-	Genres []StatGenre `json:"genres"`
-	Adult  uint        `json:"adult"`
+	SynchronizationDate string      `json:"lastSync"`
+	Count               uint        `json:"count"`
+	Types               []StatType  `json:"types"`
+	Genres              []StatGenre `json:"genres"`
+	Adult               uint        `json:"adult"`
 }
 
 type StatType struct {

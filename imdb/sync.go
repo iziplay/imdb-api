@@ -129,10 +129,14 @@ func calculateStatistics(db *gorm.DB) {
 	var adult int64
 	db.Model(&database.Title{}).Where("is_adult = ?", true).Count(&adult)
 
+	var sync *database.Synchronization
+	db.Order("date DESC").First(&sync)
+
 	currentStats = &database.Stats{
-		Count:  uint(count),
-		Types:  types,
-		Genres: genres,
-		Adult:  uint(adult),
+		SynchronizationDate: sync.Date,
+		Count:               uint(count),
+		Types:               types,
+		Genres:              genres,
+		Adult:               uint(adult),
 	}
 }
