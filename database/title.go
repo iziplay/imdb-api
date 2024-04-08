@@ -13,7 +13,8 @@ type Title struct {
 	RuntimeMinutes int            `tsv:"runtimeMinutes" json:"runtimeMinutes"`
 	Genres         pq.StringArray `gorm:"type:text[]" tsv:"genres" json:"genres"`
 
-	Akas []TitleAka `gorm:"foreignKey:TConst" json:"akas"`
+	Episode *TitleEpisode `gorm:"foreignKey:TConst" json:"episode"`
+	Akas    []TitleAka    `gorm:"foreignKey:TConst" json:"akas"`
 }
 
 type TitleAka struct {
@@ -21,4 +22,11 @@ type TitleAka struct {
 	Region   string `gorm:"primaryKey" tsv:"region" json:"region,omitempty"`
 	Language string `gorm:"primaryKey;index" tsv:"language" json:"language,omitempty"`
 	Title    string `gorm:"primaryKey" tsv:"title" json:"title"`
+}
+
+type TitleEpisode struct {
+	TConst  string `gorm:"primaryKey" tsv:"tconst" json:"-"`
+	Parent  string `tsv:"parentTconst" json:"parent"`
+	Season  int    `tsv:"seasonNumber" json:"season"`
+	Episode int    `tsv:"episodeNumber" json:"episode"`
 }

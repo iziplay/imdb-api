@@ -4,6 +4,7 @@ type Stats struct {
 	SynchronizationDate string      `json:"lastSync"`
 	Count               uint        `json:"count"`
 	AkasCount           uint        `json:"akasCount"`
+	EpisodesCount       uint        `json:"episodesCount"`
 	Types               []StatType  `json:"types"`
 	Genres              []StatGenre `json:"genres"`
 	Akas                []StatAka   `json:"akas"`

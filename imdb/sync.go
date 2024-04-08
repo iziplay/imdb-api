@@ -25,6 +25,10 @@ func Synchronize(db *gorm.DB) error {
 		return err
 	}
 
+	if err := fetchTitlesEpisodes(db); err != nil {
+		return err
+	}
+
 	if err := db.Create(&database.Synchronization{
 		Date: time.Now().Format(time.RFC3339),
 	}).Error; err != nil {
@@ -47,35 +51,12 @@ func fetchTitles(db *gorm.DB) error {
 		"genres",
 	}
 
-	log.Println("download file")
-	out, err := os.Create("/tmp/titles.basics.tsv.gz")
-	if err != nil {
-		return err
-	}
-	defer out.Close()
-
-	resp, err := http.Get("https://datasets.imdbws.com/title.basics.tsv.gz") // ~9,682,270 lines
-	if err != nil {
-		return err
-	}
-	_, err = io.Copy(out, resp.Body)
-	if err != nil {
-		return err
-	}
-
-	f, err := os.Open("/tmp/titles.basics.tsv.gz")
-	if err != nil {
-		return err
-	}
-
-	log.Println("ungzip")
-	reader, err := gzip.NewReader(f)
+	reader, err := getReader("title.basics.tsv.gz") // ~9,682,270 lines
 	if err != nil {
 		return err
 	}
 	defer reader.Close()
 
-	log.Println("parse")
 	data := database.Title{}
 	parser, _ := NewParser(reader, &data)
 	parser.SetEmptyValue("\\N")
@@ -117,35 +98,12 @@ func fetchTitles(db *gorm.DB) error {
 }
 
 func fetchTitlesAkas(db *gorm.DB) error {
-	log.Println("download file")
-	out, err := os.Create("/tmp/titles.akas.tsv.gz")
-	if err != nil {
-		return err
-	}
-	defer out.Close()
-
-	resp, err := http.Get("https://datasets.imdbws.com/title.akas.tsv.gz") // ~47,976,664 lines
-	if err != nil {
-		return err
-	}
-	_, err = io.Copy(out, resp.Body)
-	if err != nil {
-		return err
-	}
-
-	f, err := os.Open("/tmp/titles.akas.tsv.gz")
-	if err != nil {
-		return err
-	}
-
-	log.Println("ungzip")
-	reader, err := gzip.NewReader(f)
+	reader, err := getReader("title.akas.tsv.gz") // ~47,976,664 lines
 	if err != nil {
 		return err
 	}
 	defer reader.Close()
 
-	log.Println("parse")
 	data := database.TitleAka{}
 	parser, _ := NewParser(reader, &data)
 	parser.SetEmptyValue("\\N")
@@ -184,6 +142,87 @@ func fetchTitlesAkas(db *gorm.DB) error {
 	}
 }
 
+func fetchTitlesEpisodes(db *gorm.DB) error {
+	upsertColumns := []string{
+		"parent",
+		"season",
+		"episode",
+	}
+
+	reader, err := getReader("title.episode.tsv.gz") // ~8,170,872 lines
+	if err != nil {
+		return err
+	}
+	defer reader.Close()
+
+	data := database.TitleEpisode{}
+	parser, _ := NewParser(reader, &data)
+	parser.SetEmptyValue("\\N")
+
+	batch := []database.TitleEpisode{}
+	batchCount := 0
+	for {
+		eof, err := parser.Next()
+		if eof {
+			if len(batch) >= 1 {
+				if db.Clauses(clause.OnConflict{
+					Columns:   []clause.Column{{Name: "t_const"}},
+					DoUpdates: clause.AssignmentColumns(upsertColumns),
+				}).CreateInBatches(batch, len(batch)).Error != nil {
+					return err
+				}
+			}
+			return nil
+		}
+		if err != nil {
+			panic(err)
+		}
+		batch = append(batch, data)
+
+		if len(batch) == 100 {
+			if batchCount%200 == 0 {
+				log.Println("add batch from line " + strconv.Itoa(batchCount*100))
+			}
+			if db.Clauses(clause.OnConflict{
+				Columns:   []clause.Column{{Name: "t_const"}},
+				DoUpdates: clause.AssignmentColumns(upsertColumns),
+			}).CreateInBatches(batch, 100).Error != nil {
+				return err
+			}
+			batchCount++
+			batch = []database.TitleEpisode{}
+		}
+	}
+}
+
+func getReader(file string) (*gzip.Reader, error) {
+	log.Println("download file " + file)
+	out, err := os.Create("/tmp/" + file)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := http.Get("https://datasets.imdbws.com/" + file)
+	if err != nil {
+		return nil, err
+	}
+	_, err = io.Copy(out, resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := out.Close(); err != nil {
+		return nil, err
+	}
+
+	f, err := os.Open("/tmp/" + file)
+	if err != nil {
+		return nil, err
+	}
+
+	return gzip.NewReader(f)
+}
+
 func GetStatistics(db *gorm.DB) (*database.Stats, error) {
 	if currentStats == nil {
 		calculateStatistics(db)
@@ -198,6 +237,9 @@ func calculateStatistics(db *gorm.DB) {
 
 	var akasCount int64
 	db.Model(&database.TitleAka{}).Count(&akasCount)
+
+	var episodesCount int64
+	db.Model(&database.TitleEpisode{}).Count(&episodesCount)
 
 	var types [](database.StatType)
 	db.Model(&database.Title{}).Select("title_type, COUNT(*)").Group("title_type").Order("title_type").Find(&types)
@@ -221,6 +263,7 @@ func calculateStatistics(db *gorm.DB) {
 		SynchronizationDate: sync.Date,
 		Count:               uint(count),
 		AkasCount:           uint(akasCount),
+		EpisodesCount:       uint(episodesCount),
 		Types:               types,
 		Genres:              genres,
 		Akas:                akas,

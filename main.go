@@ -43,6 +43,7 @@ func main() {
 	db.AutoMigrate(&database.Synchronization{})
 	db.AutoMigrate(&database.Title{})
 	db.AutoMigrate(&database.TitleAka{})
+	db.AutoMigrate(&database.TitleEpisode{})
 
 	e := echo.New()
 	e.HideBanner = true
@@ -77,7 +78,7 @@ func main() {
 		}
 
 		var title *database.Title
-		if err := db.Preload("Akas").First(&title, "t_const = ?", imdb).Error; err != nil {
+		if err := db.Preload("Akas").Preload("Episode").First(&title, "t_const = ?", imdb).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return c.JSON(http.StatusNotFound, map[string]string{
 					"error": "imdb title cannot be found",
@@ -136,7 +137,7 @@ func main() {
 	})
 	v1.GET("/title/:title/year/:year", func(c echo.Context) error {
 		var title *database.Title
-		if err := db.Preload("Akas").First(&title, "original_title = ? AND start_year = ?", c.Param("title"), c.Param("year")).Error; err != nil {
+		if err := db.Preload("Akas").Preload("Episode").First(&title, "original_title = ? AND start_year = ?", c.Param("title"), c.Param("year")).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return c.JSON(http.StatusNotFound, map[string]string{
 					"error": "imdb title cannot be found",
