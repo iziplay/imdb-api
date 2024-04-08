@@ -42,6 +42,7 @@ func main() {
 	log.Println("migrate")
 	db.AutoMigrate(&database.Synchronization{})
 	db.AutoMigrate(&database.Title{})
+	db.AutoMigrate(&database.TitleAka{})
 
 	e := echo.New()
 	e.HideBanner = true
@@ -76,7 +77,7 @@ func main() {
 		}
 
 		var title *database.Title
-		if err := db.First(&title, "t_const = ?", imdb).Error; err != nil {
+		if err := db.Preload("Akas").First(&title, "t_const = ?", imdb).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return c.JSON(http.StatusNotFound, map[string]string{
 					"error": "imdb title cannot be found",
@@ -135,7 +136,7 @@ func main() {
 	})
 	v1.GET("/title/:title/year/:year", func(c echo.Context) error {
 		var title *database.Title
-		if err := db.First(&title, "original_title = ? AND start_year = ?", c.Param("title"), c.Param("year")).Error; err != nil {
+		if err := db.Preload("Akas").First(&title, "original_title = ? AND start_year = ?", c.Param("title"), c.Param("year")).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return c.JSON(http.StatusNotFound, map[string]string{
 					"error": "imdb title cannot be found",
@@ -170,7 +171,7 @@ func main() {
 		sync = nil
 	}
 	if sync == nil {
-		if imdb.FetchTitles(db) != nil {
+		if imdb.Synchronize(db) != nil {
 			panic(err)
 		}
 	} else {
@@ -181,7 +182,7 @@ func main() {
 
 		// sync was more than 1 day ago: sync now
 		if d.Add(24 * time.Hour).Before(time.Now()) {
-			if imdb.FetchTitles(db) != nil {
+			if imdb.Synchronize(db) != nil {
 				panic(err)
 			}
 		}
@@ -196,7 +197,7 @@ func main() {
 	for {
 		select {
 		case t := <-ticker.C:
-			if imdb.FetchTitles(db) != nil {
+			if imdb.Synchronize(db) != nil {
 				panic(err)
 			}
 			log.Println("next sync at " + t.Add(24*time.Hour).Format(time.RFC3339))

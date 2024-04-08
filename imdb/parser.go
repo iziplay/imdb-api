@@ -123,7 +123,11 @@ func (p *Parser) Next() (eof bool, err error) {
 			if p.normalize >= 0 {
 				record = p.normalize.String(record)
 			}
-			field.SetString(record)
+			if _, isEmpty := p.emptyVals[record]; isEmpty || record == "" {
+				field.SetString("")
+			} else {
+				field.SetString(record)
+			}
 		case reflect.Bool:
 			if _, isEmpty := p.emptyVals[record]; isEmpty || record == "" {
 				field.SetBool(false)

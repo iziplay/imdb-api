@@ -12,4 +12,13 @@ type Title struct {
 	EndYear        int            `tsv:"endYear" json:"endYear"`
 	RuntimeMinutes int            `tsv:"runtimeMinutes" json:"runtimeMinutes"`
 	Genres         pq.StringArray `gorm:"type:text[]" tsv:"genres" json:"genres"`
+
+	Akas []TitleAka `gorm:"foreignKey:TConst" json:"akas"`
+}
+
+type TitleAka struct {
+	TConst   string `gorm:"primaryKey;index" tsv:"titleId" json:"-"`
+	Region   string `gorm:"primaryKey" tsv:"region" json:"region,omitempty"`
+	Language string `gorm:"primaryKey;index" tsv:"language" json:"language,omitempty"`
+	Title    string `gorm:"primaryKey" tsv:"title" json:"title"`
 }
